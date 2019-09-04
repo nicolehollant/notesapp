@@ -5,13 +5,6 @@
             <button @click="render = !render">{{render ? 'render' : 'edit'}}</button>
         </header>
         <main>
-            
-            <!-- <textarea v-model="content" ref="textarea" v-if="render"></textarea>
-            <div v-html="renderedContent" class="renderbox" v-else></div> -->
-
-            <!-- <textarea v-model="content" ref="textarea" :class="render ? 'hide' : ''"></textarea>
-            <div v-html="renderedContent" class="renderbox"></div> -->
-
             <textarea v-model="content" ref="textarea" :class="render ? 'hide' : ''"></textarea>
             <div v-html="renderedContent" class="renderbox"></div>
         </main>
@@ -34,8 +27,8 @@ export default {
 and this is standard text
 
 \`\`\`
-const tellAll = () = {
-    console.log('code blocks fucking suck')
+const tellAll = () => {
+    console.log(' code blocks make me sad ')
 }
 \`\`\`
 
@@ -47,7 +40,6 @@ that's all for now
     computed: {
         renderedContent() {
             return md().render(this.content);
-            // return md.render(this.content)
         }
     },
     methods: {
@@ -61,41 +53,28 @@ that's all for now
         }
     },
     mounted() {
-        document.addEventListener('keydown', (e)=>{
-            if(e.metaKey && e.key === 'r') {
-                e.preventDefault()
-                this.render = false;
-            } else if(e.metaKey && e.key === 'e') {
-                e.preventDefault()
-                this.render = true;
-            }
-        })
-
-
-
-        // var source = document.querySelector('.replaceMe')
         var source = document.querySelector('.renderbox')
         source.onclick = replaceAndSet;
         var v_this = this;
 
         function replaceAndSet (e) {
-            console.log("hi!")
-            var userRange;
-            
+            for (const span of source.querySelectorAll('.cursor--span')) {
+                span.parentNode.removeChild(span)
+            }
+
+            var selectionRange;
             if (window.getSelection) {
-                userRange = window.getSelection().getRangeAt(0);
-                console.log("userRange", userRange)
+                selectionRange = window.getSelection().getRangeAt(0);
             }
             
             var newInput = v_this.$refs.textarea
             
-            var spanLines = userRange.startContainer.parentElement.childNodes;
-            var parent = userRange.startContainer.parentElement;
-            console.log("spanLines", spanLines, "parent:", parent)
+            var parent = selectionRange.startContainer.parentElement;
+            var textLines = parent.childNodes;
             var offset = 0, i = 0, curr = null;
             for(; i < source.childElementCount; i++){
                 curr = source.children[i];
-                console.log(curr.tagName)
+                // compensate for ::before's
                 switch (curr.tagName) {
                     case 'H1':
                         offset+=2
@@ -105,8 +84,7 @@ that's all for now
                         break;
                     case 'PRE':
                         if(parent.tagName == 'CODE') {
-                            console.log("sry", curr.textContent.length)
-                            offset -=  (17 + curr.textContent.length)
+                            offset -=  (18 + curr.textContent.length)
                             break;
                         } offset += 7;
                         break;
@@ -119,49 +97,29 @@ that's all for now
                     default:
                         break;
                 }
-                if(curr === parent) {
-                    break;
-                } else {
-                    offset+=curr.textContent.length;
-                } offset+=2;
+                if(curr === parent) break; 
+                else offset += curr.textContent.length;
+                offset+=2;
             }
 
-            // var spanLines = document.querySelector('.renderbox').childNodes;
-            var clickChar = getCursorLoc(spanLines, userRange);
-            for (const span of source.querySelectorAll('.cursor--span')) {
-                span.parentNode.removeChild(span)
-            }
-            // var newSpan = document.createElement('span');
-            // newSpan.classList.add('cursor--span')
-            let beforeText = parent.textContent.substring(0, clickChar)
-            let afterText = parent.textContent.substring(clickChar)
-            // parent.appendChild(newSpan)
+            const clickChar = getCursorLoc(textLines, selectionRange);
+            const initInnerHTML = parent.textContent;
+            const beforeText = initInnerHTML.substring(0, clickChar)
+            const afterText = initInnerHTML.substring(clickChar)            
+            parent.innerHTML = `<span>${beforeText}</span><span class="cursor--span">|</span><span>${afterText}</span>`
 
-            var newEl = document.createElement(parent.tagName)
-            newEl.innerHTML = `<span>${beforeText}</span><span class="cursor--span">|</span><span>${afterText}</span>`;
-            // var li = document.createElement('span');
-            
-            parent.replaceChild(newEl, parent.firstChild)
-            console.log("clickChar", clickChar)
-            
-            newInput.focus();
-            newInput.setSelectionRange(clickChar + offset, clickChar + offset);    
-        }
+            const cursor = document.createElement(parent.tagName)
+            const boundingRect = document.querySelector('.cursor--span').getBoundingClientRect();
+            cursor.innerHTML = "|";
+            cursor.classList.add('cursor--span')
+            cursor.style.position = 'fixed';
+            cursor.style.left = `${boundingRect.left}px`
+            cursor.style.top = `${boundingRect.y}px`
+            parent.innerHTML = initInnerHTML;
+            source.appendChild(cursor)
 
-        function createInput(baseEl) {
-            var baseX = baseEl.offsetLeft, baseY = baseEl.offsetTop;
-            var baseWidth = baseEl.offsetWidth, baseHeight = baseEl.offsetHeight;
-            var textBox = document.createElement('TextArea');
-            textBox.setAttribute('style',
-            'position: absolute; '+
-            'font-family: monospace; '+
-            'left: '+baseX+'px; '+
-            'top: '+baseY+'px; '+
-            'width: '+baseWidth+'px; '+
-            'height: '+baseHeight+'px;')
-            textBox.className = "testInput";
-            textBox.defaultValue = baseEl.innerText; // .replace(/<br>/g,'\r\n');
-            return textBox;
+            newInput.focus()
+            newInput.setSelectionRange(clickChar + offset, clickChar + offset)
         }
 
         function getCursorLoc (nodes, range) {
@@ -169,16 +127,10 @@ that's all for now
             var clickContent = range.startContainer.textContent;
             var clickLine;
             var node;
-
             for (var x = nodes.length - 1; x >= 0; x--) {
                 node = nodes[x];
-
-                if (clickContent == node.textContent) {
-                    clickLine = x;
-                }
-                else if (clickLine && (node.nodeName == "#text") ) {
-                    prevChars += node.textContent.length + 1;
-                }
+                if (clickContent == node.textContent) clickLine = x;
+                else if (clickLine && (node.nodeName == "#text")) prevChars += node.textContent.length + 1;
             }
             
             return range.startOffset + prevChars;
@@ -201,25 +153,21 @@ main {
     @apply rounded border-2 border-gray-700 px-6 pb-6 pt-3 relative;
 }
 textarea {
-    /* width: 0;
-    opacity: 0;
-    height: 0;
-    cursor: default; */
     background: none;
     min-height: 40vh;
     transition: all 0.3s ease-out;
     opacity: 1;
     resize: none;
-    /* outline: none; */
     @apply w-full h-full;
 }
 .hide {
-    /* height: 0px;
-    min-height: 0px; */
     opacity: 0;
     position: absolute;
+    z-index: -1;
 }
-
+.renderbox {
+    @apply pt-3;
+}
 .renderbox >>> h1 {
     @apply text-2xl my-4;
 }
@@ -273,8 +221,14 @@ textarea {
     @apply text-2xl mb-4 -mt-4;
 }
 .renderbox >>> .cursor--span {
+    margin: 0;
+    margin-left: -2px;
     animation: blink-animation 1s steps(5, start) infinite;
     @apply text-orange-200 inline-block;
+}
+
+.renderbox >>> .cursor--span::before {
+    content: none;
 }
 
 @keyframes blink-animation {
